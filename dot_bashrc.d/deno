@@ -1,0 +1,5 @@
+# deno
+[ -r "$HOME/.deno/env" ] &&
+  source "$HOME/.deno/env"
+[ -r "$HOME/.local/share/bash-completion/completions/deno.bash" ] &&
+  source "$HOME/.local/share/bash-completion/completions/deno.bash"

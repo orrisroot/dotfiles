@@ -1,0 +1,3 @@
+# opencode
+[ -x "$HOME/.opencode/bin/opencode" ] &&
+  export PATH="$HOME/.opencode/bin:$PATH"

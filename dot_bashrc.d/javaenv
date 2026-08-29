@@ -1,0 +1,139 @@
+# Function to manage Java environments
+function javaenv() {
+    local jvm_dir="/usr/lib/jvm"
+    local config_file="$HOME/.config/javaenv"
+    local action="$1"
+
+    case "$action" in
+        "list")
+            # List directory names under /usr/lib/jvm that contain a java executable
+            if [ ! -d "$jvm_dir" ]; then
+                echo "Directory $jvm_dir does not exist."
+                return 1
+            fi
+            
+            echo "Available Java environments:"
+            echo "  system (OS Default)"
+            for dir in "$jvm_dir"/*; do
+                if [ -d "$dir" ] && [ -x "$dir/bin/java" ]; then
+                    echo "  $(basename "$dir")"
+                fi
+            done
+            ;;
+
+        "load")
+            local env_name="$2"
+            
+            # If no environment name is specified, fallback to 'default'
+            if [ -z "$env_name" ]; then
+                env_name="default"
+            fi
+
+            # Handle 'default' alias by reading from the config file
+            if [ "$env_name" = "default" ]; then
+                if [ -f "$config_file" ]; then
+                    env_name=$(cat "$config_file")
+                else
+                    env_name="system"
+                fi
+            fi
+
+            # Handle 'system' environment explicitly
+            if [ "$env_name" = "system" ]; then
+                if [ -n "$JAVA_HOME" ]; then
+                    unset JAVA_HOME
+                fi
+                export PATH="$(echo "$PATH" | sed -E -e "s|/usr/lib/jvm/[^/]+/bin:?||g" -e "s|:$||")"
+                echo "Loaded system default Java environment."
+                java -version
+                return 0
+            fi
+
+            local target_dir="$jvm_dir/$env_name"
+
+            # Validate the target directory and java executable
+            if [ -d "$target_dir" ] && [ -x "$target_dir/bin/java" ]; then
+                export JAVA_HOME="$target_dir"
+                # Remove existing /usr/lib/jvm paths first, then prepend new path
+                export PATH="$JAVA_HOME/bin:$(echo "$PATH" | sed -E "s|/usr/lib/jvm/[^/]+/bin:?||g")"
+                
+                echo "Loaded environment: $env_name"
+                java -version
+            else
+                echo "Error: Invalid Java environment '$env_name'"
+                echo "Use 'javaenv list' to see available environments."
+                return 1
+            fi
+            ;;
+
+        "unload")
+            # Unset JAVA_HOME and remove any /usr/lib/jvm paths from PATH
+            if [ -n "$JAVA_HOME" ]; then
+                unset JAVA_HOME
+                echo "Unset JAVA_HOME."
+            fi
+            
+            # Clean up PATH
+            export PATH="$(echo "$PATH" | sed -E -e "s|/usr/lib/jvm/[^/]+/bin:?||g" -e "s|:$||")"
+            echo "Removed Java from PATH."
+            ;;
+
+        "default")
+            local target_env="$2"
+
+            # If no argument is provided, display the currently configured default
+            if [ -z "$target_env" ]; then
+                if [ -f "$config_file" ]; then
+                    echo "Current default: $(cat "$config_file")"
+                else
+                    echo "Current default: system"
+                fi
+                return 0
+            fi
+
+            # Handle 'current' keyword to save the currently active session environment
+            if [ "$target_env" = "current" ]; then
+                if [ -n "$JAVA_HOME" ]; then
+                    target_env=$(basename "$JAVA_HOME")
+                else
+                    target_env="system"
+                fi
+            fi
+
+            # Handle 'system' case: do not save to config (remove config if it exists)
+            if [ "$target_env" = "system" ]; then
+                if [ -f "$config_file" ]; then
+                    rm -f "$config_file"
+                fi
+                echo "Default environment set to 'system'. Configuration file removed/not updated."
+                return 0
+            fi
+
+            # Validate if the specified environment exists before saving
+            if [ ! -d "$jvm_dir/$target_env" ] || [ ! -x "$jvm_dir/$target_env/bin/java" ]; then
+                echo "Error: '$target_env' is not a valid Java environment."
+                return 1
+            fi
+
+            # Ensure config directory exists and save
+            mkdir -p "$(dirname "$config_file")"
+            echo "$target_env" > "$config_file"
+            echo "Saved '$target_env' as the default Java environment."
+            ;;
+
+        *)
+            echo "Usage:"
+            echo "  javaenv list          - List available Java environments"
+            echo "  javaenv load [name]   - Load specific Java environment (defaults to 'default')"
+            echo "  javaenv unload        - Unload Java environment and clear variables"
+            echo "  javaenv default       - Show current default environment"
+            echo "  javaenv default <name>- Save specific environment (or 'current' / 'system') as default"
+            return 1
+            ;;
+    esac
+}
+
+# Automatically load the default Java environment on shell startup if configured
+if [ -f "$HOME/.config/javaenv" ]; then
+    javaenv load default > /dev/null 2>&1
+fi

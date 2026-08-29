@@ -1,0 +1,22 @@
+# zzz-dedupe-path
+
+# Function to remove duplicate paths from PATH variable
+dedupe_path() {
+    local old_path="$PATH"
+    local new_path=""
+    local IFS=':'
+    # Declarative associative array to track visited paths
+    local -A visited
+    # Split PATH by colon and iterate
+    for dir in $old_path; do
+        # Check if the directory is already processed and not empty
+        if [[ -n "$dir" && -z "${visited[$dir]}" ]]; then
+            new_path="${new_path:+$new_path:}$dir"
+            visited[$dir]=1
+        fi
+    done
+    echo "$new_path"
+}
+
+# Apply the deduplicated path to the current environment
+export PATH=$(dedupe_path)
